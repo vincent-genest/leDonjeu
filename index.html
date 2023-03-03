@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8" />
+        <title>Donjon</title>
+        <style>
+            body {
+                background-color: black;
+                text-align: center;
+                font: italic 14px Arial;
+            }
+            canvas {
+                background-image: url(images/introJeu.png);
+                background-repeat: no-repeat;
+                cursor: crosshair;
+            }
+            p {
+                width: 900px;
+                margin: 0 auto;
+                font-size: smaller;
+                font-style: italic;
+            }
+        </style>
+    </head>
+
+    <body>
+        <canvas width="640" height="640"> </canvas>
+
+        <script>
+            //Récupérer le canvas
+            let leCanvas = document.querySelector("canvas");
+            let ctx = leCanvas.getContext("2d");
+
+            //variable globale pour gérer le choix de personnage : choixHero (doit être déclaré avant l'objet hero)
+            let choixHero;
+
+            //Un hero animé
+            let hero = {
+                img: new Image(),
+                urlImage: "images/chevalierMarcheHaut.png",
+                x: 0, //Position sur l'axe des X
+                y: 0, //Position initiale sur l'axe des Y
+                largeur: 32, //Largeur d'une vignette
+                hauteur: 50, //Hauteur d'une vignette
+                nbVignettes: 9, //Nombre de vignettes
+                indexVignette: 0, //Index de la première vignette
+                sourceX: 0, //Coordonnée X de la source de chaque vignette
+                vitesseX: 4, //Vitesse du hero sur l'axe des X
+                vitesseY: 4, //Vitesse du hero sur l'axe des Y
+                vie: 3,
+            };
+            //Charger l'image de l'animation
+            hero.img.src = hero.urlImage;
+            //Définir la postition initiale
+            hero.x = leCanvas.width / 2 - hero.largeur / 2;
+            hero.y = leCanvas.height - hero.hauteur;
+
+            //Animation du héro lors de son attaque
+            let heroAttaque = {
+                img: new Image(),
+                urlImage: "images/chevalierCoupBas.png",
+                x: 0, //Position sur l'axe des X
+                y: 0, //Position initiale sur l'axe des Y
+                largeur: 64, //Largeur d'une vignette
+                hauteur: 50, //Hauteur d'une vignette
+                nbVignettes: 6, //Nombre de vignettes
+                indexVignette: 0, //Index de la première vignette
+                sourceX: 0, //Coordonnée X de la source de chaque vignette
+            };
+
+            //Animation du héro lors de sa mort
+            let heroMort = {
+                img: new Image(),
+                urlImage: "images/chevalierMort.png",
+                x: 0, //Position sur l'axe des X
+                y: 0, //Position initiale sur l'axe des Y
+                largeur: 32, //Largeur d'une vignette
+                hauteur: 50, //Hauteur d'une vignette
+                nbVignettes: 6, //Nombre de vignettes
+                indexVignette: 0, //Index de la première vignette
+                sourceX: 0, //Coordonnée X de la source de chaque vignette
+            };
+            //Charger l'image de l'animation
+            heroMort.img.src = heroMort.urlImage;
+            //Définir la postition initiale
+            heroMort.x = leCanvas.width / 2 - heroMort.largeur / 2;
+            heroMort.y = leCanvas.height / 2 - heroMort.hauteur / 2;
+
+            //Boites de collision pour detecter où survient la détection (haut, bas, gauche, droite)
+            let collisionHaut = {
+                x: 0, //Position sur l'axe des X
+                y: 0, //Position initiale sur l'axe des Y
+                largeur: hero.largeur - 6, //Largeur de la boite (réduite de 6 pour éviter les doubles collisions)
+                hauteur: 1, //Hauteur de la boite
+            };
+
+            let collisionBas = {
+                x: 0, //Position sur l'axe des X
+                y: 0, //Position initiale sur l'axe des Y
+                largeur: hero.largeur - 6, //Largeur de la boite (réduite de 6 pour éviter les doubles collisions)
+                hauteur: 1, //Hauteur de la boite
+            };
+
+            let collisionDroite = {
+                x: 0, //Position sur l'axe des X
+                y: 0, //Position initiale sur l'axe des Y
+                largeur: 1, //Largeur de la boite
+                hauteur: hero.hauteur - 6, //Hauteur de la boite (réduite de 6 pour éviter les doubles collisions)
+            };
+
+            let collisionGauche = {
+                x: 0, //Position sur l'axe des X
+                y: 0, //Position initiale sur l'axe des Y
+                largeur: 1, //Largeur de la boite
+                hauteur: hero.hauteur - 6, //Hauteur de la boite (réduite de 6 pour éviter les doubles collisions)
+            };
+
+            //Objet pour gérer les touches fléchées du clavier
+            let fleches = {
+                haut: false,
+                bas: false,
+                droite: false,
+                gauche: false,
+            };
+
+            //Gestion des vies du hero
+            let vie = {
+                img: new Image(),
+                urlImage: "images/vie.png",
+                x: 0,
+                y: 0,
+                largeur: 64,
+                hauteur: 64,
+            };
+            vie.img.src = "images/vie.png";
+
+            //Variable globale pour gérer le début du jeu : débutJeu
+            let debutJeu = false;
+
+            //Variable globale pour gérer la fin du jeu : finJeu
+            let finJeu = false;
+
+            //Variable globale pour gérer si le jeu est gagné : jeuGagne
+            let jeuGagne = false;
+
+            //Variable globale pour gérer si le personnage est en attaque : attaque
+            let attaque = false;
+
+            //Variable globale pour gérer de quel coté le personnage attaque : attaqueCote
+            let attaqueCote = "";
+
+            //Variable pour détecter si le hero prend du dégat
+            let heroDegat = false;
+
+            //Variable pour détecter si chauve Souris peut tourner
+            let rotationChauveSourisAccepte = false;
+
+            //Variables pour stocker si le héro peut ou non attaquer
+            let tempsDeRecup = false;
+
+            //Variable pour stocker si les personnages sont invincibles après avoir été frappé
+            let tempsInvincibiliteSlime = false;
+            let tempsInvincibiliteChauveSouris = false;
+            let tempsInvincibiliteHero = false;
+
+            //Variable pour savoir combien d'ennemi ont été tué
+            let nombreEnnemiTue = 0;
+
+            //Les sons du jeu
+            let sonDegatHero = new Audio("sons/sonDegatHero.mp3");
+            let sonDegatSlime = new Audio("sons/sonDegatSlime.mp3");
+            let sonDegatChauveSouris = new Audio("sons/sonDegatChauveSouris.mp3");
+            let sonJeu = new Audio("sons/sonJeu.mp3");
+            let sonFinJeuGagne = new Audio("sons/sonFinJeuGagne.mp3");
+            let sonFinJeuPerd = new Audio("sons/sonFinJeuPerd.mp3");
+            let sonDebutJeu = new Audio("sons/sonDebutJeu.mp3");
+
+            //TABLEAUX
+            let lesSlimes = [];
+
+            let lesChauvesSouris = [];
+
+            let lesEnnemis = [lesSlimes, lesChauvesSouris];
+
+            /////////////////////////////////////////////////////
+            /*Déclaration des interval affecté lors du début du jeu*/
+            let intervalJeuID;
+            let intervalDeplacementHeroID;
+            let intervalAttaqueHeroID;
+            let intervalDeplacementSlimeID;
+            let intervalDeplacementChauveSourisID;
+            let intervalPlacerEnnemiID;
+            let intervalFinJeuID;
+            //Écouteur sur le document pour détecter si des touches de clavier sont appuyées ou relâchées
+            document.addEventListener("keydown", presserTouche);
+            document.addEventListener("keyup", relacherTouche);
+            document.addEventListener("click", attaquer);
+
+            //////////////  LES FONCTIONS //////////////////////
+            //Fontion qui éxécute le début du jeu
+            function debuterLeJeu() {
+                //Afficher l'arrière-plan du jeu
+                leCanvas.style.backgroundImage = "url(images/map3.png)";
+
+                //Démarrer la musique du jeu
+                sonDebutJeu.play();
+                sonJeu.play();
+                sonJeu.loop = true;
+
+                //Afficher la première vignette du héro
+                hero.img.src = "images/" + choixHero + "MarcheHaut.png";
+
+                //Partir le setInterval pour l'actualisation de l'affichage du jeu
+                intervalJeuID = setInterval(actualiserLeJeu, 1000 / 60);
+
+                //Charger l'image du hero à une cadence de 12 ips
+                intervalDeplacementHeroID = setInterval(gererImageDuHero, 1000 / 12);
+
+                //Charger l'image du hero en attaque à une cadence de 12 ips
+                intervalAttaqueHeroID = setInterval(gererImageAttaqueDuHero, 1000 / 12);
+
+                //Charger l'image du slime en attaque à une cadence de 12 ips
+                intervalDeplacementSlimeID = setInterval(changerImageSlime, 1000 / 12);
+
+                //Charger l'image de la chauve souris en attaque à une cadence de 12 ips
+                intervalDeplacementChauveSourisID = setInterval(changerImageChauveSouris, 1000 / 12);
+
+                //Sassurer que le hero puisse attaquer
+                tempsDeRecup = false;
+
+                //Executer le script du jeu
+                executerScriptDuJeu();
+            }
+
+            //Fonction pour actualiser l'affichage du jeu
+            function actualiserLeJeu() {
+                //Effacer le canvas
+                ctx.clearRect(0, 0, leCanvas.width, leCanvas.height);
+
+                //Appeler la fonction pour déplacer le héro
+                deplacerLeHero();
+
+                //Appeler la fonction pour dessiner l'attaque du héro
+                deplacerAttaque();
+
+                //Appeler la fonction pour deplacer les slimes
+                deplacerLesSlimes();
+
+                //Appeler la fonction pour deplacer les chauves souris
+                deplacerLesChauvesSouris();
+
+                //Appeler la fonction pour dessiner les vies en haut de l'écran
+                dessinerLesVies();
+
+                //Appeler les fonctions pour actualiser la position des boites de collisions
+                deplacerCollisionHaut();
+                deplacerCollisionBas();
+                deplacerCollisionGauche();
+                deplacerCollisionDroite();
+
+                //Appeler la fonction pour détecter si le héro meurt
+                detecterMortHero();
+
+                //Appeler la fonction pour détecter si le héro gagne
+                detecterJeuGagner();
+
+                //Detecter collision entre hero et les slimes
+                for (let unSlime of lesSlimes) {
+                    let siCollisionHaut = detecterCollision(collisionHaut, unSlime);
+                    let siCollisionBas = detecterCollision(collisionBas, unSlime);
+                    let siCollisionDroite = detecterCollision(collisionDroite, unSlime);
+                    let siCollisionGauche = detecterCollision(collisionGauche, unSlime);
+                    /*Si le hero n'est pas invincible (n'as pas été touché récemment)*/
+                    if (!tempsInvincibiliteHero) {
+                        /*Si collision avec slime dans une direction et que le héro n'est pas en train d'attaquer dans cette direction*/
+                        if (siCollisionHaut && attaqueCote != "haut") {
+                            hero.y += 30;
+                            unSlime.y -= 30;
+                            hero.img.src = "images/" + choixHero + "Degat.png";
+                            heroDegat = true;
+                            hero.vie--;
+                            tempsInvincibiliteHero = true;
+                            sonDegatHero.play();
+                            sonDegatHero.currentTime = 0;
+                            attendre(500).then(() => (hero.img.src = "images/" + choixHero + "MarcheHaut.png"));
+                            attendre(500).then(() => (heroDegat = false));
+                            attendre(2000).then(() => (tempsInvincibiliteHero = false));
+                        } else if (siCollisionBas && attaqueCote != "bas") {
+                            hero.y -= 30;
+                            unSlime.y += 30;
+                            hero.img.src = "images/" + choixHero + "Degat.png";
+                            heroDegat = true;
+                            hero.vie--;
+                            tempsInvincibiliteHero = true;
+
+                            sonDegatHero.play();
+                            sonDegatHero.currentTime = 0;
+                            attendre(500).then(() => (hero.img.src = "images/" + choixHero + "MarcheBas.png"));
+                            attendre(500).then(() => (heroDegat = false));
+                            attendre(2000).then(() => (tempsInvincibiliteHero = false));
+                        } else if (siCollisionGauche && attaqueCote != "gauche") {
+                            hero.x += 30;
+                            unSlime.x -= 30;
+                            hero.img.src = "images/" + choixHero + "Degat.png";
+                            heroDegat = true;
+                            hero.vie--;
+                            tempsInvincibiliteHero = true;
+
+                            sonDegatHero.play();
+                            sonDegatHero.currentTime = 0;
+                            attendre(500).then(() => (hero.img.src = "images/" + choixHero + "MarcheGauche.png"));
+                            attendre(500).then(() => (heroDegat = false));
+                            attendre(2000).then(() => (tempsInvincibiliteHero = false));
+                        } else if (siCollisionDroite && attaqueCote != "droite") {
+                            hero.x -= 30;
+                            unSlime.x += 30;
+                            hero.img.src = "images/" + choixHero + "Degat.png";
+                            heroDegat = true;
+                            hero.vie--;
+                            tempsInvincibiliteHero = true;
+
+                            sonDegatHero.play();
+                            sonDegatHero.currentTime = 0;
+                            attendre(500).then(() => (hero.img.src = "images/" + choixHero + "MarcheDroite.png"));
+                            attendre(500).then(() => (heroDegat = false));
+                            attendre(2000).then(() => (tempsInvincibiliteHero = false));
+                        }
+                    }
+
+                    /*Si le slime n'est pas invincible (n'as pas été touché récemment)*/
+                    if (!tempsInvincibiliteSlime && attaque) {
+                        /*Si collision avec slime dans une direction et que le héro est en train d'attaquer dans cette direction*/
+                        if (siCollisionHaut && attaqueCote == "haut") {
+                            unSlime.y -= 30;
+                            hero.y += 5;
+                            unSlime.img.src = "images/slimeDegat.png";
+                            unSlime.slimeDegat = true;
+                            unSlime.vie--;
+                            sonDegatSlime.play();
+                            sonDegatSlime.currentTime = 0;
+                            tempsInvincibiliteSlime = true;
+
+                            attendre(1000).then(() => (unSlime.img.src = "images/slime.png"));
+                            attendre(1000).then(() => (unSlime.slimeDegat = false));
+                            attendre(500).then(() => (tempsInvincibiliteSlime = false));
+                        } else if (siCollisionBas && attaqueCote == "bas") {
+                            unSlime.y += 30;
+                            hero.y -= 5;
+                            unSlime.img.src = "images/slimeDegat.png";
+                            unSlime.slimeDegat = true;
+                            unSlime.vie--;
+                            sonDegatSlime.play();
+                            sonDegatSlime.currentTime = 0;
+                            tempsInvincibiliteSlime = true;
+
+                            attendre(1000).then(() => (unSlime.img.src = "images/slime.png"));
+                            attendre(1000).then(() => (unSlime.slimeDegat = false));
+                            attendre(500).then(() => (tempsInvincibiliteSlime = false));
+                        } else if (siCollisionGauche && attaqueCote == "gauche") {
+                            unSlime.x -= 30;
+                            hero.x += 5;
+                            unSlime.img.src = "images/slimeDegat.png";
+                            unSlime.slimeDegat = true;
+                            unSlime.vie--;
+                            sonDegatSlime.play();
+                            sonDegatSlime.currentTime = 0;
+                            tempsInvincibiliteSlime = true;
+
+                            attendre(1000).then(() => (unSlime.img.src = "images/slime.png"));
+                            attendre(1000).then(() => (unSlime.slimeDegat = false));
+                            attendre(500).then(() => (tempsInvincibiliteSlime = false));
+                        } else if (siCollisionDroite && attaqueCote == "droite") {
+                            unSlime.x += 30;
+                            hero.x -= 5;
+                            unSlime.img.src = "images/slimeDegat.png";
+                            unSlime.slimeDegat = true;
+                            unSlime.vie--;
+                            sonDegatSlime.play();
+                            sonDegatSlime.currentTime = 0;
+                            tempsInvincibiliteSlime = true;
+
+                            attendre(1000).then(() => (unSlime.img.src = "images/slime.png"));
+                            attendre(1000).then(() => (unSlime.slimeDegat = false));
+                            attendre(500).then(() => (tempsInvincibiliteSlime = false));
+                        }
+                    }
+
+                    if (tempsInvincibiliteSlime || tempsInvincibiliteHero) {
+                    }
+                }
+
+                //Detecter collision entre le hero et les chauves souris
+                for (let uneChauveSouris of lesChauvesSouris) {
+                    let siCollisionHaut = detecterCollision(collisionHaut, uneChauveSouris);
+                    let siCollisionBas = detecterCollision(collisionBas, uneChauveSouris);
+                    let siCollisionDroite = detecterCollision(collisionDroite, uneChauveSouris);
+                    let siCollisionGauche = detecterCollision(collisionGauche, uneChauveSouris);
+                    /*Si le hero n'est pas invincible (n'as pas été touché récemment)*/
+                    if (!tempsInvincibiliteHero) {
+                        /*Si collision avec chauve souris dans une direction et que le héro n'est pas en train d'attaquer dans cette direction*/
+                        if (siCollisionHaut && attaqueCote != "haut") {
+                            hero.y += 30;
+                            uneChauveSouris.y -= 30;
+                            hero.img.src = "images/" + choixHero + "Degat.png";
+                            heroDegat = true;
+                            hero.vie--;
+                            tempsInvincibiliteHero = true;
+                            sonDegatHero.play();
+                            sonDegatHero.currentTime = 0;
+                            attendre(500).then(() => (hero.img.src = "images/" + choixHero + "MarcheHaut.png"));
+                            attendre(500).then(() => (heroDegat = false));
+                            attendre(2000).then(() => (tempsInvincibiliteHero = false));
+                        } else if (siCollisionBas && attaqueCote != "bas") {
+                            hero.y -= 30;
+                            uneChauveSouris.y += 30;
+                            hero.img.src = "images/" + choixHero + "Degat.png";
+                            heroDegat = true;
+                            hero.vie--;
+                            tempsInvincibiliteHero = true;
+                            sonDegatHero.play();
+                            sonDegatHero.currentTime = 0;
+                            attendre(500).then(() => (hero.img.src = "images/" + choixHero + "MarcheBas.png"));
+                            attendre(500).then(() => (heroDegat = false));
+                            attendre(2000).then(() => (tempsInvincibiliteHero = false));
+                        } else if (siCollisionGauche && attaqueCote != "gauche") {
+                            hero.x += 30;
+                            uneChauveSouris.x -= 30;
+                            hero.img.src = "images/" + choixHero + "Degat.png";
+                            heroDegat = true;
+                            hero.vie--;
+                            tempsInvincibiliteHero = true;
+                            sonDegatHero.play();
+                            sonDegatHero.currentTime = 0;
+                            attendre(500).then(() => (hero.img.src = "images/" + choixHero + "MarcheGauche.png"));
+                            attendre(500).then(() => (heroDegat = false));
+                            attendre(2000).then(() => (tempsInvincibiliteHero = false));
+                        } else if (siCollisionDroite && attaqueCote != "droite") {
+                            hero.x -= 30;
+                            uneChauveSouris.x += 30;
+                            hero.img.src = "images/" + choixHero + "Degat.png";
+                            heroDegat = true;
+                            hero.vie--;
+                            tempsInvincibiliteHero = true;
+                            sonDegatHero.play();
+                            sonDegatHero.currentTime = 0;
+                            attendre(500).then(() => (hero.img.src = "images/" + choixHero + "MarcheDroite.png"));
+                            attendre(500).then(() => (heroDegat = false));
+                            attendre(2000).then(() => (tempsInvincibiliteHero = false));
+                        }
+                    }
+                    /*Si la chauve souris n'est pas invincible (n'as pas été touché récemment)*/
+                    if (!tempsInvincibiliteChauveSouris && attaque) {
+                        /*Si collision avec chauve souris dans une direction et que le héro est en train d'attaquer dans cette direction*/
+                        if (siCollisionHaut && attaqueCote == "haut") {
+                            uneChauveSouris.y -= 30;
+                            hero.y += 5;
+                            uneChauveSouris.img.src = "images/chauveSourisDegatBas.png";
+                            uneChauveSouris.degat = true;
+                            uneChauveSouris.vie--;
+                            sonDegatChauveSouris.play();
+                            sonDegatChauveSouris.currentTime = 0;
+                            tempsInvincibiliteChauveSouris = true;
+
+                            attendre(1000).then(() => (uneChauveSouris.img.src = "images/chauveSourisBas.png"));
+                            attendre(1000).then(() => (uneChauveSouris.degat = false));
+                            attendre(500).then(() => (tempsInvincibiliteChauveSouris = false));
+                        } else if (siCollisionBas && attaqueCote == "bas") {
+                            uneChauveSouris.y += 30;
+                            hero.y -= 5;
+                            uneChauveSouris.img.src = "images/chauveSourisDegatHaut.png";
+                            uneChauveSouris.degat = true;
+                            uneChauveSouris.vie--;
+                            sonDegatChauveSouris.play();
+                            sonDegatChauveSouris.currentTime = 0;
+                            tempsInvincibiliteChauveSouris = true;
+
+                            attendre(1000).then(() => (uneChauveSouris.img.src = "images/chauveSourisHaut.png"));
+                            attendre(1000).then(() => (uneChauveSouris.degat = false));
+                            attendre(500).then(() => (tempsInvincibiliteChauveSouris = false));
+                        } else if (siCollisionGauche && attaqueCote == "gauche") {
+                            uneChauveSouris.x -= 30;
+                            hero.x += 5;
+                            uneChauveSouris.img.src = "images/chauveSourisDegatDroite.png";
+                            uneChauveSouris.degat = true;
+                            uneChauveSouris.vie--;
+                            sonDegatChauveSouris.play();
+                            sonDegatChauveSouris.currentTime = 0;
+                            tempsInvincibiliteChauveSouris = true;
+
+                            attendre(1000).then(() => (uneChauveSouris.img.src = "images/chauveSourisDroite.png"));
+                            attendre(1000).then(() => (uneChauveSouris.degat = false));
+                            attendre(500).then(() => (tempsInvincibiliteChauveSouris = false));
+                        } else if (siCollisionDroite && attaqueCote == "droite") {
+                            uneChauveSouris.x += 30;
+                            hero.x -= 5;
+                            uneChauveSouris.img.src = "images/chauveSourisDegatGauche.png";
+                            uneChauveSouris.degat = true;
+                            uneChauveSouris.vie--;
+                            sonDegatChauveSouris.play();
+                            sonDegatChauveSouris.currentTime = 0;
+                            tempsInvincibiliteChauveSouris = true;
+
+                            attendre(1000).then(() => (uneChauveSouris.img.src = "images/chauveSourisGauche.png"));
+                            attendre(1000).then(() => (uneChauveSouris.degat = false));
+                            attendre(500).then(() => (tempsInvincibiliteChauveSouris = false));
+                        }
+                    }
+                }
+            }
+
+            //Fonction pour envoyer les vagues d'ennemis (combien et quand)
+            function executerScriptDuJeu() {
+                //Générer une valeur au hasard pour determiner quels ennemis arrivent à la vague 4
+                let vague4 = entierHasard(1, 3);
+                //Placer des ennemis dépendant combien d'ennemi le héro à tué
+                if (nombreEnnemiTue == 0) {
+                    placerSlime();
+                }
+                if (nombreEnnemiTue == 1) {
+                    placerChauveSouris();
+                }
+                if (nombreEnnemiTue == 2) {
+                    placerSlime();
+                    placerChauveSouris();
+                }
+                if (nombreEnnemiTue == 4) {
+                    //Envoyer les ennemis dépendant l'entier au hasard
+                    if (vague4 == 1) {
+                        placerSlime();
+                        placerChauveSouris();
+                        placerChauveSouris();
+                    }
+                    if (vague4 == 2) {
+                        placerSlime();
+                        placerSlime();
+                        placerChauveSouris();
+                    }
+                    if (vague4 == 3) {
+                        placerChauveSouris();
+                        placerChauveSouris();
+                        placerChauveSouris();
+                    }
+                }
+                if (nombreEnnemiTue == 7) {
+                    jeuGagne = true;
+                }
+            }
+
+            //Fonction pour dessiner les vies en haut de l'écran
+            function dessinerLesVies() {
+                //Boucle for traditionnelle
+                for (let index = 0; index < hero.vie; index++) {
+                    vie.x = index * (vie.largeur + 10) + 16;
+                    vie.y = 16;
+                    ctx.drawImage(vie.img, vie.x, vie.y, vie.largeur / 1.5, vie.hauteur / 1.5);
+                }
+            }
+
+            //----------------------------FONCTIONS POUR LES SLIMES----------------------------//
+            //Fonction pour déclarer les slimes dans le tableau
+            function placerSlime() {
+                //Animation du héro lors de son attaque
+                let slime = {
+                    img: new Image(),
+                    urlImage: "images/slime.png",
+                    x: 0, //Position sur l'axe des X
+                    y: 0, //Position initiale sur l'axe des Y
+                    largeur: 50, //Largeur d'une vignette
+                    hauteur: 26, //Hauteur d'une vignette
+                    nbVignettes: 6, //Nombre de vignettes
+                    indexVignette: 0, //Index de la première vignette
+                    sourceX: 0, //Coordonnée X de la source de chaque vignette
+                    vitesse: 1, //Vitesse du slime
+                    vie: 3, //Vies du slime
+                    slimeDegat: false, //État de dégat
+                };
+                //Charger l'image de l'animation
+                slime.img.src = slime.urlImage;
+                //Définir la postition initiale (réexecuter tant que la distance entre le slime et le héro soit plus grande que 100)
+                slime.x = entierHasard(20, leCanvas.width - slime.largeur - 20);
+                slime.y = entierHasard(0, leCanvas.height - slime.hauteur - 32);
+                while (Math.abs(slime.x - hero.x) < 100) {
+                    slime.x = entierHasard(20, leCanvas.width - slime.largeur - 20);
+                }
+                while (Math.abs(slime.y - hero.y) < 100) {
+                    slime.y = entierHasard(0, leCanvas.height - slime.hauteur - 32);
+                }
+                //Mettre ce slime dans le tableau des slimes
+                lesSlimes.push(slime);
+            }
+
+            //Fonction appelant la fonction pour gérer la vignette à afficher pour l'animation des slimes
+            function changerImageSlime() {
+                for (let unSlime of lesSlimes) {
+                    //Si les slimes ne sont pas en état de dégat, on anime
+                    //Sinon, on met l'index à 0 pour l'image de dégat
+                    if (!unSlime.slimeDegat) {
+                        gererImageObjetsAnimes(unSlime);
+                    } else {
+                        unSlime.sourceX = 0;
+                    }
+                }
+            }
+
+            //Fonction pour déplacer les slimes
+            function deplacerLesSlimes() {
+                for (let unSlime of lesSlimes) {
+                    /*Si les slime ne sont pas en état de dégat, ils se déplacent*/
+                    if (!unSlime.slimeDegat) {
+                        //On déplace le slime selon la position du héro
+                        if (hero.x + hero.largeur / 2 > unSlime.x + unSlime.largeur / 2) {
+                            unSlime.x += unSlime.vitesse;
+                        }
+                        if (hero.x + hero.largeur / 2 < unSlime.x + unSlime.largeur / 2) {
+                            unSlime.x -= unSlime.vitesse;
+                        }
+                        if (hero.y + hero.hauteur / 2 > unSlime.y + unSlime.hauteur / 2) {
+                            unSlime.y += unSlime.vitesse;
+                        }
+                        if (hero.y + hero.hauteur / 2 < unSlime.y + unSlime.hauteur / 2) {
+                            unSlime.y -= unSlime.vitesse;
+                        }
+                    }
+                    //S'assurer que le unSlime ne sort pas des limites du canvas
+                    //Limite haut
+                    if (unSlime.y < 16) {
+                        unSlime.y = 16;
+                    }
+
+                    //Limite bas (-32px pour le mur du bas)
+                    let yMax = leCanvas.height - unSlime.hauteur;
+                    if (unSlime.y > yMax - 32) {
+                        unSlime.y = yMax - 32;
+                    }
+
+                    //Limite gauche (-16px pour le mur)
+                    if (unSlime.x < 16) {
+                        unSlime.x = 16;
+                    }
+
+                    //Limite droite (-16px pour le mur)
+                    let xMax = leCanvas.width - unSlime.largeur;
+                    if (unSlime.x > xMax - 16) {
+                        unSlime.x = xMax - 16;
+                    }
+
+                    //Dessiner le slime sur le canvas
+                    ctx.drawImage(
+                        unSlime.img,
+                        unSlime.sourceX,
+                        0,
+                        unSlime.largeur,
+                        unSlime.hauteur,
+                        unSlime.x,
+                        unSlime.y,
+                        unSlime.largeur,
+                        unSlime.hauteur
+                    );
+
+                    //On retire un slime du tableau si il n'a plus de vies
+                    if (unSlime.vie < 1) {
+                        //On identifie l'index de ce slime
+                        let index = lesSlimes.indexOf(unSlime);
+                        //L'enlever du tableau des slimes
+                        lesSlimes.splice(index, 1);
+                        //On incrémente le nombre d'ennemi tué
+                        nombreEnnemiTue++;
+                        //On réexecute le script du jeu
+                        executerScriptDuJeu();
+                    }
+                }
+            }
+
+            //----------------------------FONCTIONS POUR LES CHAUVES SOURIS----------------------------//
+            //Fonction pour déclarer les chauves souris dans le tableau
+            function placerChauveSouris() {
+                //Animation de l'ennemi chauve souris
+                let chauveSouris = {
+                    img: new Image(),
+                    urlImage: "images/chauveSourisHaut.png",
+                    x: 0, //Position sur l'axe des X
+                    y: 0, //Position initiale sur l'axe des Y
+                    largeur: 31, //Largeur d'une vignette
+                    hauteur: 26, //Hauteur d'une vignette
+                    nbVignettes: 4, //Nombre de vignettes
+                    indexVignette: 0, //Index de la première vignette
+                    sourceX: 0, //Coordonnée X de la source de chaque vignette
+                    vitesseX: 4, //Vitesse du hero sur l'axe des X
+                    vitesseY: 4, //Vitesse du hero sur l'axe des Y
+                    vie: 2, //Vies de la chauve souris
+                    degat: false, //État de dégat
+                    direction: 0, //Variable stockant la direction (0, 1, 2 ou 3)
+                };
+                //Charger l'image de l'animation
+                chauveSouris.img.src = chauveSouris.urlImage;
+
+                /*Définir la postition initiale  (réexecuter tant que la distance entre la chauve souris et le héro soit plus grande que 100)*/
+                chauveSouris.x = entierHasard(20, leCanvas.width - chauveSouris.largeur - 20);
+                chauveSouris.y = entierHasard(0, leCanvas.height - chauveSouris.hauteur - 32);
+                while (Math.abs(chauveSouris.x - hero.x) < 100) {
+                    chauveSouris.x = entierHasard(20, leCanvas.width - chauveSouris.largeur - 20);
+                }
+                while (Math.abs(chauveSouris.y - hero.y) < 100) {
+                    chauveSouris.y = entierHasard(0, leCanvas.height - chauveSouris.hauteur - 32);
+                }
+
+                //Charger une direction aléatoire initiale
+                chauveSouris.direction = entierHasard(0, 3);
+
+                //Mettre cette chauve souris dans le tableau des chauves souris
+                lesChauvesSouris.push(chauveSouris);
+            }
+
+            //Fonction appelant la fonction pour gérer la vignette à afficher pour l'animation des chauves souris
+            function changerImageChauveSouris() {
+                for (let uneChauveSouris of lesChauvesSouris) {
+                    //Si les chauves souris ne sont pas en état de dégat, on anime
+                    //Sinon, on met l'index à 0 pour l'image de dégat
+                    if (!uneChauveSouris.degat) {
+                        gererImageObjetsAnimes(uneChauveSouris);
+                    } else {
+                        uneChauveSouris.sourceX = 0;
+                    }
+                }
+            }
+
+            //Fonction pour déclaré la chauve souris
+            function deplacerLesChauvesSouris() {
+                for (let uneChauveSouris of lesChauvesSouris) {
+                    /*Si les chauves souris ne sont pas en état de dégat, on les déplace*/
+                    if (!uneChauveSouris.degat) {
+                        //On déplace la chauve souris selon la variable direction
+                        if (uneChauveSouris.direction == 0) {
+                            uneChauveSouris.x += uneChauveSouris.vitesseX;
+                            uneChauveSouris.img.src = "images/chauveSourisDroite.png";
+                        } else if (uneChauveSouris.direction == 1) {
+                            uneChauveSouris.x -= uneChauveSouris.vitesseX;
+                            uneChauveSouris.img.src = "images/chauveSourisGauche.png";
+                        } else if (uneChauveSouris.direction == 2) {
+                            uneChauveSouris.y -= uneChauveSouris.vitesseY;
+                            uneChauveSouris.img.src = "images/chauveSourisHaut.png";
+                        } else if (uneChauveSouris.direction == 3) {
+                            uneChauveSouris.y += uneChauveSouris.vitesseY;
+                            uneChauveSouris.img.src = "images/chauveSourisBas.png";
+                        }
+                    }
+
+                    //S'assurer que le chauveSouris ne sort pas des limites du canvas
+                    //Limite haut
+                    let yMax = leCanvas.height - uneChauveSouris.hauteur;
+                    let xMax = leCanvas.width - uneChauveSouris.largeur;
+                    /*Si les chauves souris ne sont pas en état de dégat...*/
+                    if (!uneChauveSouris.degat) {
+                        /*Si les chauves souris touche un mur, on inverse leur direction et on permet la rotation*/
+                        if (uneChauveSouris.y < 0) {
+                            rotationChauveSourisAccepte = true;
+                            uneChauveSouris.direction = 3;
+                        } else if (uneChauveSouris.y > yMax - 32) {
+                            rotationChauveSourisAccepte = true;
+                            uneChauveSouris.direction = 2;
+                        } else if (uneChauveSouris.x < 16) {
+                            rotationChauveSourisAccepte = true;
+                            uneChauveSouris.direction = 0;
+                        } else if (uneChauveSouris.x > xMax - 16) {
+                            uneChauveSouris.img.src = "images/chauveSourisGauche.png";
+                            rotationChauveSourisAccepte = true;
+                            uneChauveSouris.direction = 1;
+                        }
+
+                        /*Si les chauves souris sont permis de tourner et qu'elle croise le héro, elles tournent dans sa direction
+                        (on doit faire une valeur absolue car le jeu ne se rafraichit pas assex rapidement pour détecter quand ils sont exactement à la même position, alors on met une marge de 10px)*/
+                        if (rotationChauveSourisAccepte == true) {
+                            if (Math.abs(hero.y - uneChauveSouris.y) < 10 && hero.x > uneChauveSouris.x) {
+                                //droite
+                                uneChauveSouris.direction = 0;
+                                rotationChauveSourisAccepte = false;
+                            } else if (Math.abs(hero.y - uneChauveSouris.y) < 10 && hero.x < uneChauveSouris.x) {
+                                //gauche
+                                uneChauveSouris.direction = 1;
+                                rotationChauveSourisAccepte = false;
+                            } else if (Math.abs(hero.x - uneChauveSouris.x) < 10 && hero.y < uneChauveSouris.y) {
+                                //haut
+                                uneChauveSouris.direction = 2;
+                                rotationChauveSourisAccepte = false;
+                            } else if (Math.abs(hero.x - uneChauveSouris.x) < 10 && hero.y > uneChauveSouris.y) {
+                                //bas
+                                uneChauveSouris.direction = 3;
+                                rotationChauveSourisAccepte = false;
+                            }
+                        }
+                        //Dessiner le chauve souris sur le canvas
+                        ctx.drawImage(
+                            uneChauveSouris.img,
+                            uneChauveSouris.sourceX,
+                            0,
+                            uneChauveSouris.largeur,
+                            uneChauveSouris.hauteur,
+                            uneChauveSouris.x,
+                            uneChauveSouris.y,
+                            uneChauveSouris.largeur * 1.5,
+                            uneChauveSouris.hauteur * 1.5
+                        );
+                    } else {
+                        /*Si elles sont en état de dégat, on déssine sans animer*/
+                        ctx.drawImage(
+                            uneChauveSouris.img,
+                            uneChauveSouris.x,
+                            uneChauveSouris.y,
+                            uneChauveSouris.largeur * 1.5,
+                            uneChauveSouris.hauteur * 1.5
+                        );
+                    }
+
+                    //On retire une chauve souris du tableau si elle n'a plus de vies
+                    if (uneChauveSouris.vie < 1) {
+                        //On identifie l'index de cette chauve souris
+                        let index = lesChauvesSouris.indexOf(uneChauveSouris);
+                        //L'enlever du tableau des chauves souris
+                        lesChauvesSouris.splice(index, 1);
+                        //On incrémente le nombre d'ennemi tué
+                        nombreEnnemiTue++;
+                        //On réexecute le script du jeu
+                        executerScriptDuJeu();
+                    }
+                }
+            }
+
+            //----------------------------FONCTIONS POUR LE HERO----------------------------//
+            //Fonction pour gérer la vignette à afficher pour l'animation du hero
+            function gererImageDuHero() {
+                if (
+                    //Si une touche est pressée, on débute l'animation
+                    (fleches.droite || fleches.gauche || fleches.haut || fleches.bas) &&
+                    !attaque &&
+                    !heroDegat
+                ) {
+                    //Définir la coordonnée sourceX de la vignette à afficher
+                    hero.sourceX = hero.indexVignette * hero.largeur;
+
+                    //Incrémenter et gérer l’index de la prochaine vignette à afficher
+                    hero.indexVignette++;
+
+                    if (hero.indexVignette == hero.nbVignettes) {
+                        hero.indexVignette = 0;
+                    }
+                } else {
+                    //Si aucune touche n'est préssé, on affiche la première vignette
+                    hero.sourceX = 0;
+                }
+            }
+
+            //Fonction pour déplacer le hero
+            function deplacerLeHero() {
+                //On déplace le hero selon la touche active
+                if (fleches.haut) {
+                    hero.y -= hero.vitesseY;
+                }
+                if (fleches.bas) {
+                    hero.y += hero.vitesseY;
+                }
+                if (fleches.droite) {
+                    hero.x += hero.vitesseX;
+                }
+                if (fleches.gauche) {
+                    hero.x -= hero.vitesseX;
+                }
+
+                //S'assurer que le hero ne sort pas des limites du canvas
+                //Limite haut
+                if (hero.y < 0) {
+                    hero.y = 0;
+                }
+
+                //Limite bas (-32px pour le mur du bas)
+                let yMax = leCanvas.height - hero.hauteur;
+                if (hero.y > yMax - 32) {
+                    hero.y = yMax - 32;
+                }
+
+                //Limite gauche (-16px pour le mur)
+                if (hero.x < 16) {
+                    hero.x = 16;
+                }
+
+                //Limite droite (-16px pour le mur)
+                let xMax = leCanvas.width - hero.largeur;
+                if (hero.x > xMax - 16) {
+                    hero.x = xMax - 16;
+                }
+
+                //Dessiner le hero (s'il n'est pas en attaque)
+                if (!attaque) {
+                    ctx.drawImage(hero.img, hero.sourceX, 0, hero.largeur, hero.hauteur, hero.x, hero.y, hero.largeur, hero.hauteur);
+                }
+            }
+
+            //Fonction pour gérer la vignette  à afficher pour l'animation de l'attaque du hero
+            function gererImageAttaqueDuHero() {
+                //Définir la coordonnée sourceX de la vignette à afficher
+                heroAttaque.sourceX = heroAttaque.indexVignette * heroAttaque.largeur;
+
+                //Incrémenter et gérer l’index de la prochaine vignette à afficher
+                heroAttaque.indexVignette++;
+
+                /*Une fois l'animation de l'attaque terminé, on arrête l'attaque*/
+                if (heroAttaque.indexVignette == heroAttaque.nbVignettes) {
+                    attaque = false;
+                }
+            }
+
+            //Fonction pour dessiner l'attaque du héro dans le canvas
+            function deplacerAttaque() {
+                if (attaque == true) {
+                    ctx.drawImage(
+                        heroAttaque.img,
+                        heroAttaque.sourceX,
+                        0,
+                        heroAttaque.largeur,
+                        heroAttaque.hauteur,
+                        hero.x - hero.largeur / 2,
+                        hero.y,
+                        heroAttaque.largeur,
+                        heroAttaque.hauteur
+                    );
+                }
+            }
+
+            //Fonction pour gérer la vignette  à afficher pour l'animation de la mort du hero
+            function gererImageMortDuHero() {
+                //Définir la coordonnée sourceX de la vignette à afficher
+                heroMort.sourceX = heroMort.indexVignette * heroMort.largeur;
+
+                //Incrémenter et gérer l’index de la prochaine vignette à afficher
+                heroMort.indexVignette++;
+                if (heroMort.indexVignette >= heroMort.nbVignettes) {
+                    heroMort.indexVignette = 6;
+                    clearInterval(intervalFinJeuID);
+                }
+            }
+
+            //Fonction pour dessiner l'animation de mort du héro dans le canvas
+            function dessinerMort() {
+                ctx.drawImage(
+                    heroMort.img,
+                    heroMort.sourceX,
+                    0,
+                    heroMort.largeur,
+                    heroMort.hauteur,
+                    heroMort.x,
+                    heroMort.y,
+                    heroMort.largeur,
+                    heroMort.hauteur
+                );
+            }
+            //----------------------------FONCTIONS POUR LES COLLISION----------------------------//
+            //Fonctions pour déplacer les éléments servant à détecter les collisions
+            function deplacerCollisionHaut() {
+                /*Si pas en état d'attaque, on les dessines à la taille normale , sinon on augmante la taille des collisions pour faciliter le jeu*/
+                if (!attaque) {
+                    //Place la boite de collision au dessus du hero
+                    //(Ajoute 1px de marge pour éviter une double détection)
+                    collisionHaut.x = hero.x + hero.largeur / 2 - collisionHaut.largeur / 2;
+                    collisionHaut.y = hero.y + collisionHaut.hauteur / 2 - 1;
+                } else {
+                    //Place la boite de collision au dessus du hero
+                    //(Ajoute 1px de marge pour éviter une double détection)
+                    collisionHaut.x = hero.x + hero.largeur / 2 - collisionHaut.largeur / 2;
+                    collisionHaut.y = hero.y + (collisionHaut.hauteur * 5) / 2 - 10;
+                }
+            }
+
+            function deplacerCollisionBas() {
+                /*Si pas en état d'attaque, on les dessines à la taille normale , sinon on augmante la taille des collisions pour faciliter le jeu*/
+                if (!attaque) {
+                    //Place la boite de collision en dessous du hero
+                    //(Ajoute 1px de marge pour éviter une double détection)
+                    collisionBas.x = hero.x + hero.largeur / 2 - collisionBas.largeur / 2;
+                    collisionBas.y = hero.y + hero.hauteur + 1;
+                } else {
+                    //Place la boite de collision en dessous du hero
+                    //(Ajoute 1px de marge pour éviter une double détection)
+                    collisionBas.x = hero.x + hero.largeur / 2 - collisionBas.largeur / 2;
+                    collisionBas.y = hero.y + hero.hauteur - (collisionBas.hauteur * 5) / 2 + 5;
+                }
+            }
+
+            function deplacerCollisionGauche() {
+                /*Si pas en état d'attaque, on les dessines à la taille normale , sinon on augmante la taille des collisions pour faciliter le jeu*/
+                if (!attaque) {
+                    //Place la boite de collision à gauche du hero
+                    //(Ajoute 1px de marge pour éviter une double détection)
+                    collisionGauche.x = hero.x - collisionGauche.largeur - 1; //Position sur l'axe des X
+                    collisionGauche.y = hero.y + hero.hauteur / 2 - collisionGauche.hauteur / 2; //Position initiale sur l'axe des Y
+                } else {
+                    //Place la boite de collision à gauche du hero
+                    //(Ajoute 1px de marge pour éviter une double détection)
+                    collisionGauche.x = hero.x - collisionGauche.largeur * 5 - 5; //Position sur l'axe des X
+                    collisionGauche.y = hero.y + hero.hauteur / 2 - (collisionGauche.hauteur * 1.1) / 2; //Position initiale sur l'axe des Y
+                }
+            }
+
+            function deplacerCollisionDroite() {
+                /*Si pas en état d'attaque, on les dessines à la taille normale , sinon on augmante la taille des collisions pour faciliter le jeu*/
+                if (!attaque) {
+                    //Place la boite de collision à droite du hero
+                    //(Ajoute 1px de marge pour éviter une double détection)
+                    collisionDroite.x = hero.x + hero.largeur + 1; //Position sur l'axe des X
+                    collisionDroite.y = hero.y + hero.hauteur / 2 - collisionDroite.hauteur / 2; //Position initiale sur l'axe des Y
+                } else {
+                    //Place la boite de collision à droite du hero
+                    //(Ajoute 1px de marge pour éviter une double détection)
+                    collisionDroite.x = hero.x + hero.largeur + 5; //Position sur l'axe des X
+                    collisionDroite.y = hero.y + hero.hauteur / 2 - (collisionDroite.hauteur * 1.1) / 2; //Position initiale sur l'axe des Y
+                }
+            }
+
+            //Fonction pour gérer les vignettes à afficher pour chaque animation
+            function gererImageObjetsAnimes(objetAnim) {
+                //Définir la coordonnée sourceX de la vignette à afficher
+                objetAnim.sourceX = objetAnim.indexVignette * objetAnim.largeur;
+
+                //Incrémenter et gérer l’index de la prochaine vignette à afficher
+                objetAnim.indexVignette++;
+
+                /*Une fois arriver au bout de l'animation, on la recommence*/
+                if (objetAnim.indexVignette == objetAnim.nbVignettes) {
+                    objetAnim.indexVignette = 0;
+                }
+            }
+
+            //----------------------------FONCTIONS POUR LES TOUCHES----------------------------//
+            // Fonction pour détecter quelles touches sont appuyées
+            function presserTouche(event) {
+                //Empêcher le comportement par défaut du navigateur avec les touches fléchées
+                event.preventDefault();
+
+                //Enregistrer si une touche haut/Droite/gauche/droite est pressée
+                if (event.keyCode == 38 || event.keyCode == 87) {
+                    //flèche haut
+                    fleches.haut = true;
+                    attaqueCote = "haut";
+                    hero.img.src = "images/" + choixHero + "MarcheHaut.png";
+                    heroAttaque.img.src = "images/" + choixHero + "CoupHaut.png";
+                    heroMort.img.src = "images/" + choixHero + "Mort.png";
+                }
+                if (event.keyCode == 40 || event.keyCode == 83) {
+                    //flèche bas
+                    fleches.bas = true;
+                    attaqueCote = "bas";
+                    hero.img.src = "images/" + choixHero + "MarcheBas.png";
+                    heroAttaque.img.src = "images/" + choixHero + "CoupBas.png";
+                    heroMort.img.src = "images/" + choixHero + "Mort.png";
+                }
+                if (event.keyCode == 37 || event.keyCode == 65) {
+                    //flèche gauche
+                    fleches.gauche = true;
+                    attaqueCote = "gauche";
+                    hero.img.src = "images/" + choixHero + "MarcheGauche.png";
+                    heroAttaque.img.src = "images/" + choixHero + "CoupGauche.png";
+                    heroMort.img.src = "images/" + choixHero + "Mort.png";
+                }
+                if (event.keyCode == 39 || event.keyCode == 68) {
+                    //flèche droite
+                    fleches.droite = true;
+                    attaqueCote = "droite";
+                    hero.img.src = "images/" + choixHero + "MarcheDroite.png";
+                    heroAttaque.img.src = "images/" + choixHero + "CoupDroite.png";
+                    heroMort.img.src = "images/" + choixHero + "Mort.png";
+                }
+
+                // Choix du personnage (1, 2, 3 ou 4) et que le jeu n'est pas commencé
+                if (event.keyCode == 49 && !debutJeu) {
+                    //1
+                    choixHero = "garde";
+                    debutJeu = true;
+                    debuterLeJeu();
+                }
+                if (event.keyCode == 50 && !debutJeu) {
+                    //2
+                    choixHero = "chevalier";
+                    debutJeu = true;
+                    debuterLeJeu();
+                }
+                if (event.keyCode == 51 && !debutJeu) {
+                    //3
+                    choixHero = "villageois";
+                    debutJeu = true;
+                    debuterLeJeu();
+                }
+                if (event.keyCode == 52 && !debutJeu) {
+                    //4
+                    choixHero = "squelette";
+                    debutJeu = true;
+                    debuterLeJeu();
+                }
+
+                if (event.keyCode == 32) {
+                    //espace
+                    attaquer();
+                }
+            }
+
+            // Fonction pour détecterquelles touches sont relâchées
+            function relacherTouche(event) {
+                //Empêcher le comportement par défaut du navigateur avec les touches fléchées
+                event.preventDefault();
+
+                //Enregistrer si une touche haut/bas/gauche/droite est relâchée
+                if (event.keyCode == 38 || event.keyCode == 87) {
+                    //flèche haut
+                    fleches.haut = false;
+
+                    //Si une autre flèche est toujours préssée, on remet l'animation associée
+                    if (fleches.gauche == true) {
+                        hero.img.src = "images/" + choixHero + "MarcheGauche.png";
+                    }
+                    if (fleches.droite == true) {
+                        hero.img.src = "images/" + choixHero + "MarcheDroite.png";
+                    }
+                }
+                if (event.keyCode == 40 || event.keyCode == 83) {
+                    //flèche bas
+                    fleches.bas = false;
+
+                    //Si une autre flèche est toujours préssée, on remet l'animation associée
+                    if (fleches.gauche == true) {
+                        hero.img.src = "images/" + choixHero + "MarcheGauche.png";
+                    }
+                    if (fleches.droite == true) {
+                        hero.img.src = "images/" + choixHero + "MarcheDroite.png";
+                    }
+                }
+                if (event.keyCode == 37 || event.keyCode == 65) {
+                    //flèche gauche
+                    fleches.gauche = false;
+
+                    //Si une autre flèche est toujours préssée, on remet l'animation associée
+                    if (fleches.haut == true) {
+                        hero.img.src = "images/" + choixHero + "MarcheHaut.png";
+                    }
+                    if (fleches.bas == true) {
+                        hero.img.src = "images/" + choixHero + "MarcheBas.png";
+                    }
+                }
+                if (event.keyCode == 39 || event.keyCode == 68) {
+                    //flèche droite
+                    fleches.droite = false;
+
+                    //Si une autre flèche est toujours préssée, on remet l'animation associée
+                    if (fleches.haut == true) {
+                        hero.img.src = "images/" + choixHero + "MarcheHaut.png";
+                    }
+                    if (fleches.bas == true) {
+                        hero.img.src = "images/" + choixHero + "MarcheBas.png";
+                    }
+                }
+
+                //Si le jeu est fini et que la touche R est relâchée
+                //On repart le jeu
+                if (finJeu == true && event.keyCode == 82) {
+                    document.location.reload();
+                }
+            }
+
+            //----------------------------FONCTIONS POUR LA FIN DU JEU----------------------------//
+            //Fonction pour détecter si le héro meurt (et la fin du jeu)
+            function detecterMortHero() {
+                //Si le héro n'a plus de vie, on arrête le jeu
+                if (hero.vie < 1) {
+                    clearInterval(intervalJeuID);
+                    clearInterval(intervalDeplacementChauveSourisID);
+                    clearInterval(intervalDeplacementHeroID);
+                    clearInterval(intervalAttaqueHeroID);
+                    clearInterval(intervalPlacerEnnemiID);
+                    clearInterval(intervalDeplacementSlimeID);
+                    ctx.clearRect(0, 0, leCanvas.width, leCanvas.height);
+                    sonJeu.pause();
+                    sonFinJeuPerd.play();
+                    finJeu = true;
+                    leCanvas.style.backgroundImage = "url(images/finJeuPerd.png)";
+                    intervalFinJeuID = setInterval(jouerAnimationFinJeu, 1000 / 3);
+                }
+            }
+
+            function detecterJeuGagner() {
+                if (jeuGagne) {
+                    clearInterval(intervalJeuID);
+                    clearInterval(intervalDeplacementChauveSourisID);
+                    clearInterval(intervalDeplacementHeroID);
+                    clearInterval(intervalAttaqueHeroID);
+                    clearInterval(intervalPlacerEnnemiID);
+                    clearInterval(intervalDeplacementSlimeID);
+                    ctx.clearRect(0, 0, leCanvas.width, leCanvas.height);
+                    sonJeu.pause();
+                    sonFinJeuGagne.play();
+                    finJeu = true;
+                    leCanvas.style.backgroundImage = "url(images/finJeuGagne.png)";
+                }
+            }
+
+            //Fonction pour démarrer l'animation mort du héro et changer le fond d'écran
+            function jouerAnimationFinJeu() {
+                ctx.clearRect(0, 0, leCanvas.width, leCanvas.height);
+                gererImageMortDuHero();
+                dessinerMort();
+            }
+
+            //----------------------------FONCTIONS PRATIQUE----------------------------//
+            //Fonction pour la gestion de l'attaque du héro
+            function attaquer() {
+                if (!tempsDeRecup && debutJeu) {
+                    attaque = true;
+                    heroAttaque.indexVignette = 0;
+                    tempsDeRecup = true;
+                    attendre(500).then(() => (tempsDeRecup = false));
+                }
+            }
+
+            //Fonction pour générer un nombre entier avec les paramètre donnés
+            function entierHasard(nbMin, nbMax) {
+                let intervalle = nbMax - nbMin;
+                return nbMin + Math.round(Math.random() * intervalle);
+            }
+
+            //Fonction pour attendre un certain temps avant d'executer une action
+            function attendre(temps) {
+                //Source: https://masteringjs.io/tutorials/fundamentals/wait-1-second-then
+                return new Promise((resoudre) => setTimeout(resoudre, temps));
+            }
+
+            //Fonction pour détecter si deux objets de forme rectangulaire se touchent
+            function detecterCollision(rectangle1, rectangle2) {
+                if (
+                    rectangle1.x < rectangle2.x + rectangle2.largeur &&
+                    rectangle1.x + rectangle1.largeur > rectangle2.x &&
+                    rectangle1.y < rectangle2.y + rectangle2.hauteur &&
+                    rectangle1.y + rectangle1.hauteur > rectangle2.y
+                ) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        </script>
+    </body>
+</html>
